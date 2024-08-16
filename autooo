@@ -1,0 +1,90 @@
+const puppeteer = require('puppeteer');
+
+async function run() {
+    const browser = await puppeteer.launch({ headless: false }); // Use headless: true for production
+    const page = await browser.newPage();
+
+    let isRunning = true;
+
+    // Utility function to generate a random delay
+    function getRandomDelay(min, max) {
+        return Math.floor(Math.random() * (max - min + 1)) + min;
+    }
+
+    // Function to log messages with timestamp
+    function log(message) {
+        const timestamp = new Date().toISOString();
+        console.log(`[${timestamp}] ${message}`);
+    }
+
+    // Navigate to the Scribie page
+    await page.goto('https://scribie.com/transcription-test#files', { waitUntil: 'networkidle2' });
+
+    // Function to click the audio button
+    async function clickAudioButton() {
+        const audioButton = await page.$('.glyphicon.glyphicon-play');
+        if (audioButton) {
+            await page.hover('.glyphicon.glyphicon-play');
+            await page.waitForTimeout(getRandomDelay(500, 1500));
+            await audioButton.click();
+            log('Audio button clicked');
+            await waitForAudioToPlay();
+        }
+    }
+
+    // Function to wait for the audio to start playing
+    async function waitForAudioToPlay() {
+        const audioElement = await page.$('.audio-preview.btn.btn-round.btn-info');
+        if (audioElement) {
+            await page.evaluate(el => {
+                el.onplay = () => {
+                    console.log('Audio started playing');
+                    clickSelectButton();
+                };
+            }, audioElement);
+        }
+    }
+
+    // Function to click the select button
+    async function clickSelectButton() {
+        const selectButton = await page.$('.btn.btn-success');
+        if (selectButton) {
+            await page.hover('.btn.btn-success');
+            await page.waitForTimeout(getRandomDelay(500, 1500));
+            await selectButton.click();
+            log('Select button clicked');
+        }
+    }
+
+    // Function to start refreshing the page
+    async function startRefreshing() {
+        while (isRunning) {
+            log('Refreshing page');
+            await page.reload({ waitUntil: 'networkidle2' });
+            await page.waitForTimeout(getRandomDelay(6000, 9000));
+        }
+    }
+
+    // Monitor for the audio button
+    page.on('load', async () => {
+        if (isRunning) {
+            await clickAudioButton();
+        }
+    });
+
+    // Start refreshing the page
+    await startRefreshing();
+
+    // Event listener for keyboard events (handled through Puppeteer)
+    page.keyboard.on('keydown', async (event) => {
+        if (event.key === ' ') {
+            isRunning = !isRunning; // Toggle running state
+            log('Script ' + (isRunning ? 'resumed' : 'paused'));
+        } else if (event.key === 'q' && !isRunning) {
+            isRunning = true; // Resume the script if paused
+            log('Script resumed');
+        }
+    });
+}
+
+run().catch(error => console.error(error));
